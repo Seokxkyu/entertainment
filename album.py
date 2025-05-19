@@ -1,11 +1,12 @@
 import os
 import time
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -13,30 +14,29 @@ from selenium.webdriver.support import expected_conditions as EC
 # ────────────────────────────────────────────────────
 # 1) 설정
 # ────────────────────────────────────────────────────
-CHROMEDRIVER_PATH = r"C:\Users\rootn\OneDrive\Desktop\intern\chromedriver-win32\chromedriver-win32\chromedriver.exe"
-MERGED_CSV        = os.path.join(os.getcwd(), "data", "album_sales.csv")
-BASE_URL          = "https://circlechart.kr/page_chart/album.circle"
+MERGED_CSV = os.path.join(os.getcwd(), "data", "album_sales.csv")
+BASE_URL   = "https://circlechart.kr/page_chart/album.circle"
 
 # ────────────────────────────────────────────────────
-# 2) WebDriver 초기화
+# 2) WebDriver 초기화 (webdriver-manager 사용)
 # ────────────────────────────────────────────────────
 def init_driver():
     opts = Options()
     opts.add_argument("--headless")
     opts.add_argument("--disable-gpu")
     opts.add_argument("--window-size=1920,1080")
-    return webdriver.Chrome(service=Service(CHROMEDRIVER_PATH), options=opts)
+    # ChromeDriverManager 로 자동 설치된 드라이버 경로를 Service에 넘김
+    service = Service(ChromeDriverManager().install())
+    return webdriver.Chrome(service=service, options=opts)
 
 # ────────────────────────────────────────────────────
 # 3) 기존 merged CSV 에서 마지막 수집 월(YYYY-MM) 찾기
 # ────────────────────────────────────────────────────
 def get_last_month(merged_csv: str):
     if not os.path.exists(merged_csv):
-        # 파일 자체가 없으면, 예시로 2015-01부터 수집 시작
         return datetime(2015, 1, 1)
     df = pd.read_csv(merged_csv, parse_dates=["Date"])
     last_date = df["Date"].max()
-    # 마지막 월의 1일로 정제
     return last_date.replace(day=1)
 
 # ────────────────────────────────────────────────────
@@ -50,6 +50,7 @@ def build_target_months(start_month: datetime):
         months.append((cur.year, cur.month))
         cur += relativedelta(months=1)
     return months
+
 # ────────────────────────────────────────────────────
 # 5) 한 달치 원시 테이블 크롤링
 # ────────────────────────────────────────────────────
@@ -69,8 +70,8 @@ def crawl_month(year: int, month: int, driver):
         if len(cols) < 5:
             continue
         recs.append({
-            "Album_Info":  cols[2].text.strip(),
-            "Play_Count":  cols[3].text.strip()
+            "Album_Info": cols[2].text.strip(),
+            "Play_Count": cols[3].text.strip()
         })
     return pd.DataFrame(recs)
 
@@ -78,19 +79,20 @@ def crawl_month(year: int, month: int, driver):
 # 6) 새로운 월별 데이터를 기존 merged 에 증분 반영
 # ────────────────────────────────────────────────────
 def incremental_update(merged_csv: str, driver):
-    """
-    merged_csv: 기존 album_sales.csv 경로
-    driver: Selenium WebDriver 인스턴스
-    """
+    # ARTIST_RENAMES = {
+    # "(여자)아이들": "i-dle (아이들)"
+    # }
+    
     if os.path.exists(merged_csv):
         df_merged = pd.read_csv(merged_csv, parse_dates=["Date"])
+        # df_merged["Artist"] = df_merged["Artist"].replace(ARTIST_RENAMES)
     else:
         df_merged = pd.DataFrame(columns=[
-            "Artist", "Album", "Year", "Month", "Sales", "Year_Month", "Date"
+            "Artist","Album","Year","Month","Sales","Year_Month","Date"
         ])
 
-    last_month = get_last_month(merged_csv)            
-    targets    = build_target_months(last_month)        
+    last_month = get_last_month(merged_csv)
+    targets    = build_target_months(last_month)
     if not targets:
         print("✅ 이미 최신까지 수집 완료.")
         return
@@ -99,20 +101,24 @@ def incremental_update(merged_csv: str, driver):
 
     for year, month in targets:
         print(f"▶ 크롤링 {year}-{month:02d}")
-        df_raw = crawl_month(year, month, driver)  
+        df_raw = crawl_month(year, month, driver)
         if df_raw.empty:
             continue
 
+        # split and clean
         df_raw[["Album","Artist"]] = df_raw["Album_Info"].str.split("\n", expand=True)
         df_raw[["Sales","_"]]       = df_raw["Play_Count"].str.split(" / ", expand=True)
         df_raw["Sales"]             = df_raw["Sales"].str.replace(",", "").astype(int)
+        df_raw["Album"]             = df_raw["Album"].str.replace(r"\s*\(.*\)", "", regex=True).str.strip()
 
-        df_raw["Album"] = df_raw["Album"].str.replace(r"\s*\(.*\)", "", regex=True).str.strip()
-        df_monthly = df_raw.groupby(["Artist","Album"], as_index=False)["Sales"].sum()
-
+        # monthly aggregation
+        df_monthly = (
+            df_raw.groupby(["Artist","Album"], as_index=False)["Sales"].sum()
+        )
         df_monthly["Year"]  = year
         df_monthly["Month"] = month
 
+        # merge into df_merged
         for _, row in df_monthly.iterrows():
             mask = (
                 (df_merged["Artist"] == row["Artist"]) &
@@ -132,10 +138,10 @@ def incremental_update(merged_csv: str, driver):
 
         time.sleep(1)
 
+    # recalculate Date
     df_merged["Year_Month"] = (
-        df_merged["Year"].astype(str)
-        + "-"
-        + df_merged["Month"].astype(str).str.zfill(2)
+        df_merged["Year"].astype(str) + "-" +
+        df_merged["Month"].astype(str).str.zfill(2)
     )
     df_merged["Date"] = (
         pd.PeriodIndex(df_merged["Year_Month"], freq="M")
@@ -145,7 +151,6 @@ def incremental_update(merged_csv: str, driver):
 
     df_merged.to_csv(merged_csv, index=False, encoding="utf-8-sig")
     print(f"📝 {len(targets)}개 월 증분 반영 완료 → {merged_csv}")
-
 
 # ────────────────────────────────────────────────────
 # 7) main

@@ -10,12 +10,11 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager 
 
 # ───────────────────────────────────────────────────
 # 1) 환경 설정
 # ───────────────────────────────────────────────────
-# CHROMEDRIVER_PATH = r"C:\Users\rootn\Downloads\chromedriver-win32\chromedriver-win32\chromedriver.exe"
-CHROMEDRIVER_PATH = r"C:\Users\rootn\OneDrive\Desktop\intern\chromedriver-win32\chromedriver-win32\chromedriver.exe"
 DOWNLOAD_FOLDER   = os.path.join(os.getcwd(), "data", "ytweekly")
 CSV_PATH          = os.path.join(os.getcwd(), "data", "us_weekly_yt.csv")
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
@@ -31,13 +30,17 @@ def init_driver():
         "download.directory_upgrade": True,
         "safebrowsing.enabled": True
     })
+    opts.add_argument("--headless")   
     opts.add_argument("--disable-gpu")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--lang=en-US")
     opts.add_experimental_option("excludeSwitches", ["enable-automation"])
     opts.add_experimental_option("useAutomationExtension", False)
-    return webdriver.Chrome(service=Service(CHROMEDRIVER_PATH), options=opts)
+
+    # ChromeDriverManager로 자동 설치된 드라이버 사용
+    service = Service(ChromeDriverManager().install())
+    return webdriver.Chrome(service=service, options=opts)
 
 # ───────────────────────────────────────────────────
 # 3) 마지막 목요일 이후 날짜 계산

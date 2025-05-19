@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -15,13 +16,12 @@ from selenium.common.exceptions import TimeoutException
 # ───────────────────────────────────────────────────
 # 1) 경로 설정
 # ───────────────────────────────────────────────────
-CHROMEDRIVER_PATH = r"C:\Users\rootn\OneDrive\Desktop\intern\chromedriver-win32\chromedriver-win32\chromedriver.exe"
-DOWNLOAD_FOLDER   = os.path.join(os.getcwd(), "data", "spotdaily")
-CSV_PATH          = os.path.join(os.getcwd(), "data", "us_daily_stream.csv")
+DOWNLOAD_FOLDER = os.path.join(os.getcwd(), "data", "spotdaily")
+CSV_PATH        = os.path.join(os.getcwd(), "data", "us_daily_stream.csv")
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 # ───────────────────────────────────────────────────
-# 2) WebDriver 초기화
+# 2) WebDriver 초기화 (webdriver-manager 사용)
 # ───────────────────────────────────────────────────
 def init_driver():
     opts = Options()
@@ -31,48 +31,57 @@ def init_driver():
         "download.directory_upgrade": True,
         "safebrowsing.enabled": True
     })
+    opts.add_argument("--headless")    
     opts.add_argument("--disable-gpu")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_experimental_option("excludeSwitches", ["enable-automation"])
     opts.add_experimental_option("useAutomationExtension", False)
-    return webdriver.Chrome(service=Service(CHROMEDRIVER_PATH), options=opts)
+
+    service = Service(ChromeDriverManager().install())
+    return webdriver.Chrome(service=service, options=opts)
 
 # ───────────────────────────────────────────────────
-# 3a) 간단 로그인 시도
+# 3a) 간단 로그인 시도 (수정)
 # ───────────────────────────────────────────────────
 def try_simple_login(driver, user, pwd):
     wait = WebDriverWait(driver, 10)
     driver.get("https://accounts.spotify.com/ko/login?continue=https%3A%2F%2Fcharts.spotify.com/login")
+
+    user_in = wait.until(EC.presence_of_element_located((By.ID, "login-username")))
+    user_in.clear(); user_in.send_keys(user)
+    pwd_in  = wait.until(EC.presence_of_element_located((By.ID, "login-password")))
+    pwd_in.clear(); pwd_in.send_keys(pwd)
+    btn     = wait.until(EC.element_to_be_clickable((By.ID, "login-button")))
+    btn.click()
+
     try:
-        user_in = wait.until(EC.presence_of_element_located((By.ID, "login-username")))
-        user_in.clear(); user_in.send_keys(user)
-        pwd_in  = wait.until(EC.presence_of_element_located((By.ID, "login-password")))
-        pwd_in.clear(); pwd_in.send_keys(pwd)
-        btn = wait.until(EC.element_to_be_clickable((By.ID, "login-button")))
-        btn.click()
-        time.sleep(3)
-        return "Spotify" in driver.title
+        wait.until(EC.title_contains("Charts"))
+        print("✅ 간단 로그인 및 차트 페이지 로딩 완료")
+        return True
     except TimeoutException:
+        print("⚠️ 간단 로그인은 됐지만 차트 페이지 진입 실패")
         return False
 
 # ───────────────────────────────────────────────────
-# 3b) 차단 시 우회 로그인
+# 3b) 차단 시 우회 로그인 (수정)
 # ───────────────────────────────────────────────────
 def fallback_login(driver, user, pwd):
     wait = WebDriverWait(driver, 10)
     driver.get("https://accounts.spotify.com/ko/login?continue=https%3A%2F%2Fcharts.spotify.com/login")
+
     user_in = wait.until(EC.presence_of_element_located((By.ID, "login-username")))
     user_in.clear(); user_in.send_keys(user)
-    cont = wait.until(EC.element_to_be_clickable((By.ID, "login-button"))); cont.click()
+    cont    = wait.until(EC.element_to_be_clickable((By.ID, "login-button"))); cont.click()
     pwd_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., '비밀번호로 로그인하기')]")))
     pwd_btn.click()
-    time.sleep(1)
-    pwd_in = wait.until(EC.presence_of_element_located((By.ID, "login-password")))
+
+    pwd_in  = wait.until(EC.presence_of_element_located((By.ID, "login-password")))
     pwd_in.clear(); pwd_in.send_keys(pwd)
-    final = wait.until(EC.element_to_be_clickable((By.ID, "login-button")))
-    final.click()
-    wait.until(EC.title_contains("Spotify"))
+    final   = wait.until(EC.element_to_be_clickable((By.ID, "login-button"))); final.click()
+
+    wait.until(EC.title_contains("Charts"))
+    print("✅ 우회 로그인 및 차트 페이지 로딩 완료")
 
 # ───────────────────────────────────────────────────
 # 4) 수집할 날짜 리스트 계산
@@ -138,7 +147,6 @@ def append_new_data(csv_path: str, download_folder: str):
 if __name__ == "__main__":
     USER, PWD = "ks@rootnglobal.com", "jang4983!!"
 
-    # 1) 수집 대상 날짜 우선 계산
     dates = get_next_dates(CSV_PATH)
     if not dates:
         print("✅ 이미 최신까지 수집 완료되었습니다.")
@@ -146,17 +154,21 @@ if __name__ == "__main__":
 
     print(f"📅 수집 대상 날짜: {dates}")
 
-    # 2) 로그인 & 다운로드
     driver = init_driver()
-    if not try_simple_login(driver, USER, PWD):
-        print("🔒 간단 로그인 실패, 우회 로그인 수행")
+    try:
+        print("🔄 우회 로그인 시도…")
         fallback_login(driver, USER, PWD)
-    else:
+        print("✅ 우회 로그인 성공")
+    except TimeoutException:
+        print("🔒 우회 로그인 실패 (비밀번호 칸 없음), 간단 로그인 시도…")
+        if not try_simple_login(driver, USER, PWD):
+            print("❌ 간단 로그인도 실패했습니다. 스크립트를 중단합니다.")
+            driver.quit()
+            exit(1)
         print("✅ 간단 로그인 성공")
 
     for d in dates:
         download_chart(driver, d)
     driver.quit()
 
-    # 3) 통합본 업데이트
     append_new_data(CSV_PATH, DOWNLOAD_FOLDER)

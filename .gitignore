@@ -1,1 +1,4 @@
 *.csv
+data/*.csv
+data/spotdaily/*.csv
+data/ytweekly/*.csv

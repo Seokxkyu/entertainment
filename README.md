@@ -3,8 +3,6 @@
 ## 📂 디렉토리 구조
 ```bash
 intern/                           
-├── chromedriver-win32/          
-│   └── chromedriver.exe
 └── entertainment/                
     ├── data/
     │   ├── us_weekly_yt.csv

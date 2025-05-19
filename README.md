@@ -40,3 +40,9 @@ python spotify.py
 cd intern/entertainment
 python youtube_music.py
 ```
+
+## 시각화
+> 3개의 CSV 파일을 `myproject/data` 폴더 내부로 복사 이동
+- **kr_album_sales.csv** : 앨범 판매량 집계 데이터
+- **us_daily_spotify.csv** : 스포티파이 스트리밍 집계 데이터
+- **us_weekly_yt.csv** : 유튜브 뮤직 집계 데이터 

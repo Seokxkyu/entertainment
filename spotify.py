@@ -17,7 +17,7 @@ from selenium.common.exceptions import TimeoutException
 # 1) 경로 설정
 # ───────────────────────────────────────────────────
 DOWNLOAD_FOLDER = os.path.join(os.getcwd(), "data", "spotdaily")
-CSV_PATH        = os.path.join(os.getcwd(), "data", "us_daily_stream.csv")
+CSV_PATH        = os.path.join(os.getcwd(), "data", "us_daily_spotify.csv")
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 # ───────────────────────────────────────────────────

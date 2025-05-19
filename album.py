@@ -14,7 +14,7 @@ from selenium.webdriver.support import expected_conditions as EC
 # ────────────────────────────────────────────────────
 # 1) 설정
 # ────────────────────────────────────────────────────
-MERGED_CSV = os.path.join(os.getcwd(), "data", "album_sales.csv")
+MERGED_CSV = os.path.join(os.getcwd(), "data", "kr_album_sales.csv")
 BASE_URL   = "https://circlechart.kr/page_chart/album.circle"
 
 # ────────────────────────────────────────────────────

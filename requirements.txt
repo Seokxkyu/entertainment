@@ -1,0 +1,4 @@
+selenium
+pandas
+python-dateutil
+webdriver-manager

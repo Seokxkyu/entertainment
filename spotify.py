@@ -31,7 +31,7 @@ def init_driver():
         "download.directory_upgrade": True,
         "safebrowsing.enabled": True
     })
-    opts.add_argument("--headless")    
+    # opts.add_argument("--headless")    
     opts.add_argument("--disable-gpu")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
@@ -75,10 +75,13 @@ def fallback_login(driver, user, pwd):
     cont    = wait.until(EC.element_to_be_clickable((By.ID, "login-button"))); cont.click()
     pwd_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., '비밀번호로 로그인하기')]")))
     pwd_btn.click()
+    time.sleep(1)
 
     pwd_in  = wait.until(EC.presence_of_element_located((By.ID, "login-password")))
     pwd_in.clear(); pwd_in.send_keys(pwd)
-    final   = wait.until(EC.element_to_be_clickable((By.ID, "login-button"))); final.click()
+    final   = wait.until(EC.element_to_be_clickable((By.ID, "login-button")))
+    final.click()
+    time.sleep(1)
 
     wait.until(EC.title_contains("Charts"))
     print("✅ 우회 로그인 및 차트 페이지 로딩 완료")
@@ -118,6 +121,7 @@ def download_chart(driver, date_str: str):
 # ───────────────────────────────────────────────────
 def append_new_data(csv_path: str, download_folder: str):
     df_exist    = pd.read_csv(csv_path, dtype={"date": str}) if os.path.exists(csv_path) else pd.DataFrame()
+    existing_len = len(df_exist)
     new_frames  = []
     pattern     = os.path.join(download_folder, "regional-us-daily-*.csv")
 
@@ -138,8 +142,11 @@ def append_new_data(csv_path: str, download_folder: str):
     df_all = pd.concat([df_exist] + new_frames, ignore_index=True)
     df_all.drop_duplicates(subset=["date", "rank", "uri"], inplace=True)
     df_all.to_csv(csv_path, index=False)
-    added = sum(len(f) for f in new_frames)
-    print(f"📝 {added}개 레코드 추가 후 저장: {csv_path}")
+
+    final_len = len(df_all)           
+    added = final_len - existing_len
+    
+    print(f"📝 신규 추가된 레코드: {added}건, 전체 {final_len}건 저장 완료: {csv_path}")
 
 # ───────────────────────────────────────────────────
 # 7) 메인 실행 (순서 변경)

@@ -53,7 +53,7 @@ def get_next_thursdays(csv_path: str) -> list[str]:
     last_thu = df['date'].max()
     dates = []
     current = last_thu + timedelta(days=7)
-    today   = datetime.today()
+    today   = datetime.today() - timedelta(days=3)
     while current < today:
         dates.append(current.strftime("%Y%m%d"))
         current += timedelta(days=7)

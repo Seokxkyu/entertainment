@@ -75,7 +75,7 @@ def fallback_login(driver, user, pwd):
     cont    = wait.until(EC.element_to_be_clickable((By.ID, "login-button"))); cont.click()
     pwd_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., '비밀번호로 로그인하기')]")))
     pwd_btn.click()
-    time.sleep(1)
+    time.sleep(4)
 
     pwd_in  = wait.until(EC.presence_of_element_located((By.ID, "login-password")))
     pwd_in.clear(); pwd_in.send_keys(pwd)
